@@ -150,7 +150,7 @@ class PutIO
       if verbose
         STDERR.puts "application_secret: #{@application_secret.inspect}"
         STDERR.puts "client_id: #{@client_id.inspect}"
-        STDERR.puts "token: #{@token.inspect}"
+        # STDERR.puts "token: #{@token.inspect}"
       end
 
       Dir.mkdir_p @dbfile.parent unless Dir.exists? @dbfile.parent
@@ -189,7 +189,16 @@ class PutIO
         entries = putio.tree
         prepare_output
         case @output_format
-        when OutputFormat::ANSI, OutputFormat::ASCII
+        when OutputFormat::ASCII, OutputFormat::ANSI
+          entries.keys.sort.each do |path|
+            entry = entries[path]
+            if entry.file?
+              @io.printf "%14d %14d %-20s %s\n", entry.id, entry.size, entry.content_type, path
+            else
+              @io.printf "%14d %14d %-20s %s\n", entry.id, (entry.child_ids.try &.size) || 0, entry.content_type, path
+            end
+          end
+        when OutputFormat::Unset
           entries.keys.sort.each { |e| @io.puts entries[e].to_json }
         when OutputFormat::JSON
           entries.to_json(@io)
