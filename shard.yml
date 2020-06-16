@@ -1,0 +1,19 @@
+name: put-io
+version: 0.1.0
+
+authors:
+  - Paul M. Lambert <plambert@plambert.net>
+
+targets:
+  put-io:
+    main: src/put-io-cli.cr
+
+dependencies:
+  halite:
+    github: icyleaf/halite
+  sqlite3:
+    github: crystal-lang/crystal-sqlite3
+
+crystal: 0.34.0
+
+license: MIT
