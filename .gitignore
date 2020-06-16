@@ -1,0 +1,8 @@
+/docs/
+/lib/
+/bin/
+/.shards/
+*.dwarf
+/paths.pl
+/t.cr
+/index.json
