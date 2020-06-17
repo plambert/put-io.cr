@@ -6,6 +6,7 @@ script:
 
 deploy:
   provider: releases
+  edge: true
   file: bin/put-io
   on:
     tags: true
