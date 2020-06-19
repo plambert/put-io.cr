@@ -1,6 +1,6 @@
 require "json"
 require "./put-io"
-require "./put-io/cli/config"
+# require "./put-io/cli/config"
 require "pretty_print"
 
 class PutIO
