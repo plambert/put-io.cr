@@ -3,11 +3,10 @@ script:
 - crystal tool format --check
 deploy:
   provider: releases
-  api_key:
+  token:
     secure: Rb9JlB2/PSJj26RwZGdE9PFnexMxZqWReuWn9JnZxsUigizdM1kEkUPuGIyVJjhP2DZxI+xee/igHkbGo9IZE5O394+iZOJpvLAB1lYFvTk39Ze0HAkTe+BC359fKfH35fd1dq8eu/B3ExfZVVmPyY4qDAmmTUritmJQU96vTZxbflLievKN+IYUQmTjlBWQCSQt4VbRxRSU6sJ3z9K1FNymLxv4yTjPyVkECMFRiCrLtnHpFc4eeamoEhBmp7kzbt0Z76cCTQzRLs0PDLsO7+jrjnAM7ryAwQPm9yqacyLe/NxJSDxpCGR3/oLLbBMHR+nwHBm6CAJq1tMXh6YaimycGyMLVzZkb5QC8gYlQAjgx0N6lLIeeyTq+JzYf2DXFQqRf0OrsaJuPIPFhXwqDmbFsnocWrD3xJ0NHKqnEt0Ir0s2yBlMcyuTNpzJH3qH+vpe9HX02u7udvU5wUI6qbxXPTu9tUqDxrm7RJIcvazZpo7JrsmjB+ZtVQbRO1H0zcYQXFWGyzsFJg6qxcxRj2KUJWC2vCKnLl1BpvamNcqKM/2q9pHb9JEv0v9xKmgvViQ5DrS2z6Td5/QGiuKR6FhzKUYy9SBhiRZnkNQj0cqUi+C6uNI/x0K2xy1jTpmPEEmDtRZvJpwM3fMVsMtovhfpEiRfPua4fIu5DwZTuFs=
   file: bin/put-io
   draft: true
   on:
-    repo: plambert/put-io.cr
     tags: true
-  skip_cleanup: 'true'
+  skip_cleanup: true
