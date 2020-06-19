@@ -1,12 +1,17 @@
 language: crystal
+os:
+- linux
+- osx
 script:
 - crystal tool format --check
 - shards build --release
+before_deploy:
+  - mv bin/put-io "bin/put-io-${TRAVIS_OS_NAME}"
 deploy:
   provider: releases
   api_key:
     secure: nNBgtmGz1R0taR9gipFBkNTtwE5OGgx03W1z3klSX6Hs3tiCKIq9uxmzyuqUC59/+5cSXQNH7NQf3OrRNuZH9LJytt2V3T2T7EfqI3eCwetnZCipiZx5L+Noj3WiMc5mNyN8J6LG5PWl7i55EnNq3ouR7C25ANXlBF3wWMBbI88uLRvX8BxPGSS/15SlcuULwbLCBYGSXNeDqCm2c3If51z0Fq2er0PqyC1tD+ssXiGRlM3EmuLRT4Of4cVwz6zTENhVGzHWJr/pQLpDlepQyBvOk2/OLtfffFUyk+RwshEkdAi7hVJsu/DcKPLg+uwXBHMm4vkG82uARig2AJB5J4JPOh3x6CFdHzjl3FhTctv3lGmGuCFmJQHu8LhIkupo/FrfySNUmjh8iiaM5b7Y+7hSB1qE036yOT6+ixCJgrGV4XXzCOw9KBA0H8azWP416zbIOtYiihUDj+Wnaq8uwkT8Zht95sOBqbPyQyVvwYvAV+4BoPgN1n6vSzz+RzpybEReEcEwIQz9EJgqEeaCeU0ws8eWpYPoR8eHcI6xeYAj2o50IKEQlZVdwA55Hx3WFGl072c7YhpS3bSKcLRWUdlQ1VZopqmt8FDToXl28GTputEhjCPBrsfA4IvykEHJgSUT2/i8s3JQseOIXbPNM3kOpsOmgP5mDcKMqKimrZo=
-  file: bin/put-io
+  file: bin/put-io-*
   prerelease: true
   on:
     tags: true
