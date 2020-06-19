@@ -1,6 +1,7 @@
 language: crystal
 script:
 - crystal tool format --check
+- shards build --release
 deploy:
   provider: releases
   api_key:
