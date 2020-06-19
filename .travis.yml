@@ -4,9 +4,8 @@ os:
 - osx
 script:
 - crystal tool format --check
-- shards build --release
-before_deploy:
-  - mv bin/put-io "bin/put-io-${TRAVIS_OS_NAME}"
+- shards build put-io --release --error-trace
+- "[[ -f bin/put-io ]] && mv -f -v bin/put-io \"bin/put-io-${TRAVIS_OS_NAME}\""
 deploy:
   provider: releases
   api_key:
@@ -14,6 +13,6 @@ deploy:
   file: bin/put-io-*
   prerelease: true
   on:
-    tags: true
+    repo: plambert/put-io.cr
   skip_cleanup: 'true'
   overwrite: true
