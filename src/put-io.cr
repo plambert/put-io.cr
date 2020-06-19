@@ -301,14 +301,13 @@ class PutIO
     begin
       response = self.get "oauth2/oob/code/#{code}"
       result = response.parse
-    rescue
-      result = JSON::Any::Object.new
+    rescue e
+      raise "auth_oob_check failed: #{e}"
     end
     if result["status"]? && result["status"].as_s == "OK" && result["oauth_token"]?
-      @token = result["oauth_token"].as_s
-      @token
+      result["oauth_token"].as_s
     else
-      nil
+      raise "auth_oob_check failed: #{result["status"].as_s}"
     end
   end
 
@@ -326,7 +325,6 @@ class PutIO
     @token
   end
 
-  # yield version
   def self.auth_oob_check(code : String)
     token = auth_oob_check code: code
     if token
