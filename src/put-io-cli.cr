@@ -31,7 +31,7 @@ class PutIO
     property profile : String
     property application_secret : String?
     property app_id : Int64? = APP_ID
-    property token : String
+    property token : String?
     property command : Commands
     property putio : PutIO
     property output_format : OutputFormat = OutputFormat::Auto
@@ -133,12 +133,12 @@ class PutIO
       end
 
       # read the config file
+      @config = JSON::Any.new({} of String => JSON::Any)
       begin
-        @config = File.open(configfile, "r") do |input|
-          JSON.parse(input)
+        File.open(configfile, "r") do |input|
+          @config = JSON.parse(input)
         end
       rescue
-        @config = JSON::Any::Object.new
         File.write(configfile, @config.to_json)
       end
       config = @config
@@ -160,16 +160,21 @@ class PutIO
       @token = @config[profile]["token"].as_s if config[profile]["token"]?
       if verbose
         STDERR.puts "application_secret: #{@application_secret.inspect}"
-        STDERR.puts "client_id: #{@client_id.inspect}"
+        STDERR.puts "client_id: #{@app_id.inspect}"
         STDERR.puts "token: #{@token.inspect}"
       end
 
       # Dir.mkdir_p @dbfile.parent unless Dir.exists? @dbfile.parent
-      @putio = PutIO.new(
-        app_id: @app_id,
-        application_secret: @application_secret,
-        token: @token,
-      )
+      token = @token
+      if token
+        @putio = PutIO.new(
+          app_id: @app_id,
+          application_secret: @application_secret,
+          token: token,
+        )
+      else
+        raise "no token"
+      end
       # dbfile: @dbfile,
     end
 
