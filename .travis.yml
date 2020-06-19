@@ -1,7 +1,8 @@
 language: crystal
-os:
-- linux
-- osx
+
+# os:
+# - linux
+# - osx
 script:
 - crystal tool format --check
 - shards build put-io --release --error-trace
@@ -14,5 +15,12 @@ deploy:
   prerelease: true
   on:
     repo: plambert/put-io.cr
-  skip_cleanup: 'true'
   overwrite: true
+
+jobs:
+  include:
+  - os: linux
+  - os: osx
+    osx_image: xcode11.3
+    env:
+      PKG_CONFIG_PATH: /usr/local/opt/openssl/lib/pkgconfig
