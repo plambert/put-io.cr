@@ -1,12 +1,13 @@
 language: crystal
 
 script:
-#  - crystal spec
   - crystal tool format --check
+#  - crystal spec
 
 deploy:
   provider: releases
   edge: true
   file: bin/put-io
+  username: plambert
   on:
     tags: true
