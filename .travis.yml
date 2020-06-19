@@ -9,4 +9,6 @@ deploy:
   draft: true
   on:
     repo: plambert/put-io.cr
+    tags: true
   skip_cleanup: true
+  overwrite: true
