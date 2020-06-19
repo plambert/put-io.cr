@@ -10,11 +10,11 @@ class PutIO
   class_property sort_keys : Array(String) = %w{NAME_ASC NAME_DESC SIZE_ASC SIZE_DESC DATE_ASC DATE_DESC MODIFIED_ASC MODIFIED_DESC}
   class_property file_types : Array(String) = %w{FOLDER FILE AUDIO VIDEO IMAGE ARCHIVE PDF TEXT SWF}
 
-  property client_id : Int64?
   property application_secret : String?
   property token : String
-  property dbfile : Path
+  # property dbfile : Path
   property client : Halite::Client
+  property app_id : Int64? = nil
 
   def self.verbose
     @@verbose
@@ -25,7 +25,7 @@ class PutIO
     value
   end
 
-  def initialize(@token, @dbfile, @client_id = nil, @application_secret = nil, client : Halite::Client? = nil)
+  def initialize(@token, @app_id = nil, @application_secret = nil, client : Halite::Client? = nil)
     if client
       @client = client
     else
@@ -279,16 +279,89 @@ class PutIO
     count
   end
 
-  private def get(path : String, *, params : QueryParamsType = QueryParamsType.new)
-    response = @client.get path, params: params
+  def self.auth_oob_code(*, app_id, client_name : String? = nil)
+    response = if client_name
+                 self.get "oauth2/oob/code", params: {client_name: client_name, app_id: app_id}
+               else
+                 self.get "oauth2/oob/code", params: {app_id: app_id}
+               end
+    result = response.parse
+    raise "oob error: #{result}" unless result["status"]? && result["status"].as_s == "OK" && result["code"]? && result["code"].as_s?
+    result["code"].as_s
+  end
+
+  # yield version
+  def self.auth_oob_code(*, app_id, client_name : String? = nil)
+    code = auth_oob_code app_id: app_id, client_name: client_name
+    yield code
+  end
+
+  def self.auth_oob_check(code : String)
+    raise "code must not be empty" if 0 == code.size
+    begin
+      response = self.get "oauth2/oob/code/#{code}"
+      result = response.parse
+    rescue
+      result = JSON::Any::Object.new
+    end
+    if result["status"]? && result["status"].as_s == "OK" && result["oauth_token"]?
+      @token = result["oauth_token"].as_s
+      @token
+    else
+      nil
+    end
+  end
+
+  def self.auth_oob(app_id, *, client_name : String? = nil, prompt : String? = "Go to https://put.io/link and enter the code: %s", io : IO = STDERR)
+    auth_oob_code app_id: app_id, client_name: client_name do |code|
+      if prompt
+        io.puts sprintf(prompt, code)
+      end
+      delay = 5
+      while !auth_oob_check code: code
+        sleep delay
+        delay = delay - 1 if delay > 1
+      end
+    end
+    @token
+  end
+
+  # yield version
+  def self.auth_oob_check(code : String)
+    token = auth_oob_check code: code
+    if token
+      yield token
+    else
+      nil
+    end
+  end
+
+  def get(path : String, *, params : QueryParamsType = QueryParamsType.new)
+    self.class.get path: path, params: params, client: @client
+  end
+
+  def self.get(path : String, *, params : QueryParamsType = QueryParamsType.new, client : Halite::Client? = nil)
+    client = Halite::Client.new do
+      user_agent "crystal/put.io/#{VERSION}"
+      endpoint "https://api.put.io/v2"
+    end unless client
+    response = client.get path, params: params
     if response.status_code != 200
       raise "#{path}: #{response.status_code}: request failed:\n#{response.inspect}\n#{response.body.inspect}"
     end
     response
   end
 
-  private def post(path : String, *, form : Hash(String, String))
-    response = @client.post path, form: form
+  def post(path : String, *, form : Hash(String, String) = {} of String => String)
+    self.class.post path: path, form: form, client: @client
+  end
+
+  def self.post(path : String, *, form : Hash(String, String), client : Halite::Client? = nil)
+    client = Halite::Client.new do
+      user_agent "crystal/put.io/#{VERSION}"
+      endpoint "https://api.put.io/v2"
+    end unless client
+    response = client.post path, form: form
     if response.status_code != 200
       raise "#{path}: #{response.status_code}: request_failed\nsent: #{form}\n#{response.inspect}\n#{response.body.inspect}"
     end
