@@ -13,6 +13,9 @@ class PutIO
       Get
       Path
       Login
+      Transfers
+      Statuses
+      Upload
     end
     enum OutputFormat
       Unset
@@ -39,6 +42,11 @@ class PutIO
     property output_file : Path? = nil
     property get_ids : Array(Int64) = [] of Int64
     property paths : Array(String) = [] of String
+    property name_match : Regex? = nil
+    property error_match : Bool? = nil
+    property status_match : Set(PutIO::Transfer::Status)? = nil
+    property sortkey : Symbol = :created_at
+    property parent : String? = nil
 
     def initialize(*args : String)
       initialize argv: args
@@ -85,6 +93,38 @@ class PutIO
           end
         when "--output", "-o"
           @output_file = Path[argv.shift]
+        when "--name"
+          name_arg = argv.shift || raise "#{arg}: requires an argument"
+          if name_arg =~ %r{^/.*/$}
+            @name_match = Regex.new name_arg.sub(%r{^/}, "").sub(%r{/$}, "")
+          else
+            @name_match = Regex.new Regex.escape name_arg
+          end
+        when "--errored"
+          @error_match = true
+        when "--folder", "--at"
+          @parent = ARGV.shift
+        when "--not-errored"
+          @error_match = false
+        when "--status"
+          status_arg = argv.shift || raise "#{arg}: requires an argument"
+          @status_match = PutIO::Transfer::Status.parse_arg @status_match, status_arg
+        when "--sort"
+          sorted_arg = argv.shift || raise "#{arg}: requires an argument"
+          @sortkey = case sorted_arg.downcase
+                     when "name"
+                       :name
+                     when "percent", "completion_percent", "completion"
+                       :completion_percent
+                     when "ratio", "current_ratio"
+                       :current_ratio
+                     when "created", "created_at", "create"
+                       :created_at
+                     when "completed", "finished", "finished_at"
+                       :finished_at
+                     else
+                       raise "unknown sort key"
+                     end
         when "account_info", "account-info", "info"
           command = Commands::AccountInfo
         when "list"
@@ -93,11 +133,19 @@ class PutIO
           command = Commands::Get
         when "path"
           command = Commands::Path
+        when "transfer", "transfers"
+          command = Commands::Transfers
+        when "statuses"
+          command = Commands::Statuses
+        when "upload", "put"
+          command = Commands::Upload
+        when /^--/
+          raise "#{arg}: unknown option"
         else
           if command == Commands::Get && arg.match(%r{^\d+$})
             @get_ids << arg.to_i64
-          elsif command == Commands::Path
-            paths << arg.to_s
+          elsif command == Commands::Path || command == Commands::Upload
+            @paths << arg.to_s
           else
             raise "#{PROGRAM_NAME}: #{arg}: unknown option"
           end
@@ -202,16 +250,16 @@ class PutIO
           raise "#{@output_format}: output format not implemented"
         end
       when Commands::List
-        entries = putio.tree
+        entries = putio.file_tree
         prepare_output
         case @output_format
         when OutputFormat::ASCII, OutputFormat::ANSI
           entries.keys.sort.each do |path|
             entry = entries[path]
             if entry.file?
-              @io.printf "%14d %14d %-20s %s\n", entry.id, entry.size, entry.content_type, path
+              @io.printf "%14d %14d %-23s %s\n", entry.id, entry.size, entry.content_type, path
             else
-              @io.printf "%14d %14d %-20s %s\n", entry.id, (entry.child_ids.try &.size) || 0, entry.content_type, path
+              @io.printf "%14d %14d %-23s %s\n", entry.id, (entry.child_ids.try &.size) || 0, entry.content_type, path
             end
           end
         when OutputFormat::Unset
@@ -247,11 +295,99 @@ class PutIO
         end
       when Commands::Login
         raise "cannot login, token already defined" if @token
+      when Commands::Transfers
+        transfers = putio.transfers_list
+        count = transfers.size
+        transfers.sort! do |a, b|
+          result = a.status <=> b.status
+          result = a.completion_percent <=> b.completion_percent if 0 == result
+          result = a.name <=> b.name if 0 == result
+          result
+        end
+        if status_match = @status_match
+          transfers = transfers.select { |t| status_match.includes? t.status }
+          STDERR.puts "#{count} transfers, #{count - transfers.size} removed, #{transfers.size} remaining"
+        end
+        if name_match = @name_match
+          transfers = transfers.select { |t| name_match.match t.name }
+          STDERR.puts "#{count} transfers, #{count - transfers.size} removed, #{transfers.size} remaining"
+        end
+        error_match = @error_match
+        if !error_match.nil?
+          transfers = transfers.select { |t| @error_match == t.error? }
+          STDERR.puts "#{count} transfers, #{count - transfers.size} removed, #{transfers.size} remaining"
+        end
+        prepare_output
+        case @output_format
+        when OutputFormat::ASCII
+          transfers.each do |transfer|
+            transfer.to_ascii(@io)
+          end
+        when OutputFormat::ANSI
+          transfers.each do |transfer|
+            transfer.to_ansi(@io)
+          end
+        when OutputFormat::JSON
+          transfers.to_json(@io)
+          @io << "\n"
+        else
+          raise "#{@output_format}: output format not implemented"
+        end
+      when Commands::Statuses
+        statuses = PutIO::Transfer::Status.names
+        prepare_output
+        case @output_format
+        when OutputFormat::ASCII, OutputFormat::ANSI
+          statuses.each { |s| @io.puts s }
+        when OutputFormat::JSON
+          statuses.to_json(@io)
+          @io << "\n"
+        else
+          raise "#{@output_format}: output format not implemented"
+        end
+      when Commands::Upload
+        parent = @parent || "/"
+        case parent
+        when /^\d+$/
+          parent_id = parent.to_i64
+        else
+          parent_id = putio.by_path(parent).id
+        end
+        @paths.each do |path|
+          puts "Starting upload: #{path}"
+          response = @putio.upload file: path, parent: parent_id
+          if response.success?
+            puts "Upload complete"
+            puts response.body
+          else
+            STDERR.puts "Upload failed: #{response.status_code} #{response.status_message}"
+            STDERR.puts response.body
+          end
+        end
       else
         raise "#{command}: unknown command"
       end
     end
   end
+end
+
+def human_size(bytes : Int64)
+  negative = bytes < 0 ? "-" : ""
+  real_bytes = bytes.abs.to_f
+  units = ["", "K", "M", "G", "T"]
+  while units.size > 1 && real_bytes > 1024.0_f64
+    real_bytes = real_bytes / 1024.0_f64
+    units.shift
+  end
+  "%s%.1f%s" % [negative, real_bytes, units[0]]
+end
+
+def human_size(bytes : Int32)
+  human_size bytes.to_i64
+end
+
+def human_size(bytes : UInt32)
+  human_size bytes.to_i64
 end
 
 putio_cli = PutIO::CLI.new(ARGV)
