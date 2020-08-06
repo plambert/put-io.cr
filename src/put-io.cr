@@ -1,11 +1,13 @@
 require "halite"
 require "./put-io-entry"
 require "./put-io-accountinfo"
+require "./put-io-transfer"
 
 class PutIO
   VERSION  = "0.1.0"
   PER_PAGE = 1000
   alias QueryParamsType = Hash(String, String | Int32 | Bool | Array(String | Int32 | Bool))
+  alias FormParamsType = Hash(String, Halite::Options::Type)
   class_property verbose : Bool = false
   class_property sort_keys : Array(String) = %w{NAME_ASC NAME_DESC SIZE_ASC SIZE_DESC DATE_ASC DATE_DESC MODIFIED_ASC MODIFIED_DESC}
   class_property file_types : Array(String) = %w{FOLDER FILE AUDIO VIDEO IMAGE ARCHIVE PDF TEXT SWF}
@@ -13,7 +15,7 @@ class PutIO
   property application_secret : String?
   property token : String
   # property dbfile : Path
-  property client : Halite::Client
+  property client : Hash(Symbol, Halite::Client) = {} of Symbol => Halite::Client
   property app_id : Int64? = nil
 
   def self.verbose
@@ -25,17 +27,25 @@ class PutIO
     value
   end
 
-  def initialize(@token, @app_id = nil, @application_secret = nil, client : Halite::Client? = nil)
+  def initialize(@token, @app_id = nil, @application_secret = nil, client : Halite::Client? = nil, upload_client : Halite::Client? = nil)
     if client
-      @client = client
+      @client[:api] = client
     else
-      @client = Halite::Client.new do
-        # timeout 60.seconds
+      @client[:api] = Halite::Client.new do
         user_agent "crystal/put.io/#{VERSION}"
         headers authorization: "Bearer #{@token}"
         endpoint "https://api.put.io/v2"
       end
-      # @client.timeout(10)
+    end
+    if upload_client
+      @client[:upload] = upload_client
+    else
+      @client[:upload] = Halite::Client.new do
+        # timeout 60.seconds
+        user_agent "crystal/put.io/#{VERSION}"
+        headers authorization: "Bearer #{@token}"
+        endpoint "https://upload.put.io/v2"
+      end
     end
   end
 
@@ -148,7 +158,7 @@ class PutIO
     PutIO::AccountInfo::Settings.new info
   end
 
-  def tree(
+  def file_tree(
     parent_id : Int32 = -1,
     *,
     per_page : Int32 = PutIO::PER_PAGE,
@@ -162,7 +172,7 @@ class PutIO
     mp4_status : Bool = false
   )
     tree = {} of String => PutIO::Entry
-    list = self.list(
+    list = self.file_list(
       parent_id: parent_id,
       per_page: per_page,
       sort_by: sort_by,
@@ -182,7 +192,7 @@ class PutIO
     tree
   end
 
-  def list(
+  def file_list(
     parent_id : Int32 = -1,
     *,
     per_page : Int32 = PutIO::PER_PAGE,
@@ -196,7 +206,7 @@ class PutIO
     mp4_status : Bool = false
   )
     entries = [] of PutIO::Entry
-    self.list(
+    self.file_list(
       parent_id: parent_id,
       per_page: per_page,
       sort_by: sort_by,
@@ -214,7 +224,7 @@ class PutIO
     entries
   end
 
-  def list(
+  def file_list(
     parent_id : Int32 = -1,
     *,
     per_page : Int32 = PutIO::PER_PAGE,
@@ -279,6 +289,26 @@ class PutIO
     count
   end
 
+  def transfers_list
+    response = self.get "transfers/list"
+    result = response.parse
+    STDERR.puts "transfers = #{result}" if PutIO.verbose
+    if result["transfers"]? && result["transfers"].as_a?
+      return result["transfers"].as_a.map { |t| PutIO::Transfer.from_json t.to_json }
+    else
+      raise "transfers/list failed: status: #{result["status"]?}"
+    end
+  end
+
+  def upload(file : Path | String, parent : Int64 = 0_i64)
+    path = Path[file]
+    post_upload("files/upload", form: {
+      "parent_id" => parent,
+      "filename"  => path.basename.to_s,
+      "file"      => File.open(path, "r"),
+    })
+  end
+
   def self.auth_oob_code(*, app_id, client_name : String? = nil)
     response = if client_name
                  self.get "oauth2/oob/code", params: {client_name: client_name, app_id: app_id}
@@ -334,15 +364,15 @@ class PutIO
     end
   end
 
-  def get(path : String, *, params : QueryParamsType = QueryParamsType.new)
-    self.class.get path: path, params: params, client: @client
+  def get(path : String, *, params : QueryParamsType = QueryParamsType.new, client : Halite::Client = @client[:api])
+    self.class.get path: path, params: params, client: client
   end
 
-  def self.get(path : String, *, params : QueryParamsType = QueryParamsType.new, client : Halite::Client? = nil)
-    client = Halite::Client.new do
-      user_agent "crystal/put.io/#{VERSION}"
-      endpoint "https://api.put.io/v2"
-    end unless client
+  def get_upload(path : String, *, params : QueryParamsType = QueryParamsType.new, client : Halite::Client = @client[:upload])
+    self.class.get path: path, params: params, client: client
+  end
+
+  def self.get(path : String, *, params : QueryParamsType = QueryParamsType.new, client : Halite::Client = @client[:api])
     response = client.get path, params: params
     if response.status_code != 200
       raise "#{path}: #{response.status_code}: request failed:\n#{response.inspect}\n#{response.body.inspect}"
@@ -350,15 +380,15 @@ class PutIO
     response
   end
 
-  def post(path : String, *, form : Hash(String, String) = {} of String => String)
-    self.class.post path: path, form: form, client: @client
+  def post(path : String, *, form : FormParamsType = FormParamsType.new, client : Halite::Client = @client[:api])
+    self.class.post path: path, form: form, client: client
   end
 
-  def self.post(path : String, *, form : Hash(String, String), client : Halite::Client? = nil)
-    client = Halite::Client.new do
-      user_agent "crystal/put.io/#{VERSION}"
-      endpoint "https://api.put.io/v2"
-    end unless client
+  def post_upload(path : String, *, form : FormParamsType = FormParamsType.new, client : Halite::Client = @client[:upload])
+    self.class.post path: path, form: form, client: client
+  end
+
+  def self.post(path : String, *, form : FormParamsType = FormParamsType.new, client : Halite::Client? = @client[:api])
     response = client.post path, form: form
     if response.status_code != 200
       raise "#{path}: #{response.status_code}: request_failed\nsent: #{form}\n#{response.inspect}\n#{response.body.inspect}"
