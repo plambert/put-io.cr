@@ -35,5 +35,9 @@ class PutIO
     def time_ago(at : Time, short : Bool = false)
       time_ago(Time.utc - at, short)
     end
+
+    def time_ago(seconds : Int32, short : Bool = false)
+      time_ago at: Time::Span.new(seconds: seconds), short: short
+    end
   end
 end

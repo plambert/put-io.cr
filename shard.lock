@@ -2,13 +2,13 @@ version: 2.0
 shards:
   db:
     git: https://github.com/crystal-lang/crystal-db.git
-    version: 0.9.0
+    version: 0.10.0
 
   halite:
     git: https://github.com/icyleaf/halite.git
-    version: 0.10.5
+    version: 0.10.8
 
   sqlite3:
     git: https://github.com/crystal-lang/crystal-sqlite3.git
-    version: 0.16.0
+    version: 0.17.0
 

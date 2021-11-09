@@ -53,7 +53,7 @@ class PutIO
     @[JSON::Field(converter: Time::Format.new("%Y-%m-%dT%H:%M:%S", Time::Location.local))]
     property created_at : Time
     property created_torrent : Bool
-    property current_ratio : Float64
+    property current_ratio : Float64?
     property downloaded : Int64
     property download_id : Int64
     property down_speed : Int32
@@ -244,9 +244,9 @@ class PutIO
       io.printf "%-11s %3d%% [%s%s]\n", @status, @completion_percent, "=" * @completion_percent, "-" * (100 - @completion_percent)
       io.printf "created: %s", time_ago(@created_at)
       if seconds_seeding && seconds_seeding > 0
-        io.printf "seeding: %d ", seconds_seeding if seconds_seeding
+        io.printf " seeding: %s ", time_ago(seconds_seeding) if seconds_seeding
       end
-      io.printf "estimated: %s", estimated_time if estimated_time
+      io.printf " estimated: %s", estimated_time if estimated_time
       if finished_at
         io.printf " finished: %s", time_ago(finished_at)
         io.printf " elapsed: %s", time_ago(finished_at - @created_at, true)
@@ -273,9 +273,9 @@ class PutIO
       io.printf "\e[1m%-11s %3d%% [\e[0m\e[32m%s\e[0m\e[33m%s\e[0m\e[1m]\e[0m\n", status, @completion_percent, "=" * @completion_percent, "-" * (100 - @completion_percent)
       io.printf "created: \e[34m%s\e[0m", time_ago(@created_at)
       if seconds_seeding && seconds_seeding > 0
-        io.printf "seeding: \e[34m%d\e[0m ", seconds_seeding if seconds_seeding
+        io.printf " seeding: \e[34m%s\e[0m", time_ago(seconds_seeding) if seconds_seeding
       end
-      io.printf "estimated: \e[34m%s\e[0m", estimated_time if estimated_time
+      io.printf " estimated: \e[34m%s\e[0m", estimated_time if estimated_time
       if finished_at
         io.printf " finished: \e[34m%s\e[0m", time_ago(finished_at)
         io.printf " elapsed: \e[34m%s\e[0m", time_ago(finished_at - @created_at, true)
